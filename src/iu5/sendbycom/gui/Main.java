@@ -15,17 +15,30 @@ import java.util.BitSet;
 
 public class Main {
     public static void main(String[] args) {
-        byte[] encoded = Hamming.encode(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 });
-        byte[] decoded = Hamming.decode(encoded);
+        setUIFont(new javax.swing.plaf.FontUIResource("Segoe UI", Font.PLAIN, 18));
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        } catch (InstantiationException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (UnsupportedLookAndFeelException e) {
+            e.printStackTrace();
+        }
 
-        System.out.println(Arrays.toString(decoded));
+        SwingUtilities.invokeLater(() -> createGUI());
+    }
 
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                createGUI();
-            }
-        });
+    public static void setUIFont(javax.swing.plaf.FontUIResource f){
+        java.util.Enumeration keys = UIManager.getDefaults().keys();
+        while (keys.hasMoreElements()) {
+            Object key = keys.nextElement();
+            Object value = UIManager.get (key);
+            if (value instanceof javax.swing.plaf.FontUIResource)
+                UIManager.put (key, f);
+        }
     }
 
     private static void createGUI() {

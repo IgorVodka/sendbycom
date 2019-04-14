@@ -15,6 +15,8 @@ import javax.swing.*;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.plaf.FontUIResource;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
@@ -45,7 +47,7 @@ public class ClientForm extends JFrame {
     ClientForm(String port) {
         super();
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-
+        setResizable(false);
         this.currentPath = "";
         this.port = new Port(port);
 
@@ -56,65 +58,58 @@ public class ClientForm extends JFrame {
 
         launchClient();
 
-        requestDirListButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                final String selectedPath = dirPathTextField.getText();
+        requestDirListButton.addActionListener(e -> {
+            final String selectedPath = dirPathTextField.getText();
 
-                try {
-                    client.requestListDir(selectedPath, new DirCombinedAdapter() {
-                        @Override
-                        public void onDirCombined(DirCombinedEvent event) {
-                            Vector<String> dirs = new Vector<String>();
+            try {
+                client.requestListDir(selectedPath, new DirCombinedAdapter() {
+                    @Override
+                    public void onDirCombined(DirCombinedEvent event) {
+                        Vector<String> dirs = new Vector<String>();
 
-                            dirs.add("..");
+                        dirs.add("..");
 
-                            Vector<String> files = new Vector<String>();
+                        Vector<String> files = new Vector<String>();
 
-                            if (!event.isSuccess()) {
-                                JOptionPane.showMessageDialog(
-                                        new JFrame(),
-                                        "Не удалось отобразить список файлов",
-                                        "Ошибка!",
-                                        JOptionPane.ERROR_MESSAGE
-                                );
-                                return;
-                            }
-
-                            // todo use model
-                            for (DirFile dirFile : event.getFiles()) {
-                                if (dirFile.isDirectory()) {
-                                    dirs.add(dirFile.getName());
-                                } else {
-                                    files.add(dirFile.getName());
-                                }
-                            }
-
-                            dirPathTextField.setText(selectedPath);
-                            currentPath = selectedPath;
-
-                            dirList.setListData(dirs);
-                            fileList.setListData(files);
+                        if (!event.isSuccess()) {
+                            JOptionPane.showMessageDialog(
+                                    new JFrame(),
+                                    "Не удалось отобразить список файлов",
+                                    "Ошибка!",
+                                    JOptionPane.ERROR_MESSAGE
+                            );
+                            return;
                         }
-                    });
-                } catch (DataTooBigException e1) {
-                    e1.printStackTrace(); // todo
-                }
+
+                        for (DirFile dirFile : event.getFiles()) {
+                            if (dirFile.isDirectory()) {
+                                dirs.add(dirFile.getName());
+                            } else {
+                                files.add(dirFile.getName());
+                            }
+                        }
+
+                        dirPathTextField.setText(selectedPath);
+                        currentPath = selectedPath;
+
+                        dirList.setListData(dirs);
+                        fileList.setListData(files);
+                    }
+                });
+            } catch (DataTooBigException e1) {
+                e1.printStackTrace(); // todo
             }
         });
 
-        dirList.addListSelectionListener(new ListSelectionListener() {
-            @Override
-            public void valueChanged(ListSelectionEvent e) {
-                if (e.getValueIsAdjusting()) {
-                    return;
-                }
-
-                String selectedPath = (String) dirList.getSelectedValue();
-                String newPath = FilenameUtils.concat(currentPath, selectedPath);
-
-                dirPathTextField.setText(newPath);
+        dirList.addListSelectionListener(e -> {
+            if (e.getValueIsAdjusting()) {
+                return;
             }
+
+            String selectedPath = (String) dirList.getSelectedValue();
+            String newPath = FilenameUtils.concat(currentPath, selectedPath);
+
+            dirPathTextField.setText(newPath);
         });
 
         downloadFileButton.addActionListener(new ActionListener() {
@@ -197,14 +192,18 @@ public class ClientForm extends JFrame {
                                             return;
                                         }
 
-                                        JOptionPane.showMessageDialog(new JFrame(), "Файл успешно загружен!");
+                                        // if not in event queue, it would block the thread and sending still alives
+                                        EventQueue.invokeLater(() -> {
+                                            JOptionPane.showMessageDialog(
+                                                new JFrame(),
+                                                "Файл успешно загружен!"
+                                            );
+                                        });
                                         stream.close();
                                     }
 
                                     @Override
                                     public void onFilePartReceived(FilePartReceivedEvent event) throws IOException {
-                                        System.out.println("FILE PART REALLY RECEIVED");
-
                                         downloadProgressBar.setValue(downloadProgressBar.getValue() + 1);
                                         stream.write(event.getPart());
 
@@ -222,13 +221,13 @@ public class ClientForm extends JFrame {
                                     }
                                 });
                             } catch (DataTooBigException e1) {
-                                e1.printStackTrace(); // todo
+                                e1.printStackTrace();
                             }
                         }
                     });
                     downloader.start();
                 } catch (FileNotFoundException e1) {
-                    e1.printStackTrace(); // todo
+                    e1.printStackTrace();
 
                 }
             }
@@ -251,6 +250,16 @@ public class ClientForm extends JFrame {
             });
 
         clientThread.start();
+    }
+
+    public void setUIFont(FontUIResource f){
+        java.util.Enumeration keys = UIManager.getDefaults().keys();
+        while (keys.hasMoreElements()) {
+            Object key = keys.nextElement();
+            Object value = UIManager.get(key);
+            if (value instanceof FontUIResource)
+                UIManager.put(key, f);
+        }
     }
 
     class ClientConnectionAdapter implements ConnectionSupportAdapter {

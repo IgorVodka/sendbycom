@@ -20,6 +20,9 @@ import iu5.sendbycom.physical.exception.DataTooBigException;
 import iu5.sendbycom.physical.Port;
 import iu5.sendbycom.physical.exception.PortClosedException;
 
+import javax.swing.*;
+import javax.swing.plaf.FontUIResource;
+import java.awt.*;
 import java.io.IOException;
 import java.util.*;
 import java.util.logging.Logger;
@@ -37,7 +40,7 @@ public class FileClient {
 
     private ConnectionSupporter connectionSupporter;
 
-    private BufferizedSender sender; // todo rename to bufferizedSender
+    private BufferizedSender bufferizedSender;
     private BufferizedReceiver bufferizedReceiver;
 
     public FileClient(Logger logger, Port serverPort, ConnectionSupportAdapter connectionSupportAdapter) {
@@ -45,18 +48,18 @@ public class FileClient {
         this.serverPort = serverPort;
         this.receiver = new FrameReceiver(serverPort);
         this.clientState = ClientState.IDLE;
-        this.connectionSupporter = new ConnectionSupporter(sender, serverPort, connectionSupportAdapter);
+        this.bufferizedSender = new BufferizedSender(serverPort);
+        this.bufferizedReceiver = new BufferizedReceiver();
+        this.connectionSupporter = new ConnectionSupporter(bufferizedSender, serverPort, connectionSupportAdapter);
         this.combiners = new HashMap<>();
     }
 
-    public void connect() throws PortClosedException, DataTooBigException, InterruptedException, MetaNotReceivedException, IOException {
+    public void connect() throws PortClosedException, DataTooBigException, MetaNotReceivedException, IOException {
         serverPort.open();
-        this.sender = new BufferizedSender(serverPort);
-        this.bufferizedReceiver = new BufferizedReceiver();
 
         SessionHash handshake = SessionHash.generate();
-        sender.addFrame(new Frame(FrameType.PING, handshake.getBytes()));
-        sender.tryToSendFrames();
+        bufferizedSender.addFrame(new Frame(FrameType.PING, handshake.getBytes()));
+        bufferizedSender.tryToSendFrames();
 
         clientState = ClientState.WAITING_FOR_PONG;
 
@@ -67,7 +70,7 @@ public class FileClient {
                 return;
             }
 
-            sender.tryToSendFrames();
+            bufferizedSender.tryToSendFrames();
 
             if (receiver.hasData()) {
                 connectionSupporter.updateLastOnline();
@@ -76,7 +79,7 @@ public class FileClient {
                 if (frameJustReceived.getType() == FrameType.CONFIRM_RECEIVED) {
                     int confirmedIndex = ByteUtils.bytesToInt(frameJustReceived.getData());
                     System.out.println("Trying to mark as received remotely (local) #" + confirmedIndex);
-                    sender.markAllUpToLocalIndexAsReceivedRemotely(ByteUtils.bytesToInt(frameJustReceived.getData()));
+                    bufferizedSender.markAllUpToLocalIndexAsReceivedRemotely(ByteUtils.bytesToInt(frameJustReceived.getData()));
                     continue;
                 }
 
@@ -150,7 +153,7 @@ public class FileClient {
         Frame listDir = new Frame(FrameType.LIST_DIR, new SessionData(hash, dirPath).encode());
 
         combiners.put(hash, new DirCombiner(adapter));
-        sender.addFrame(listDir);
+        bufferizedSender.addFrame(listDir);
     }
 
     public void requestFile(String filePath, FileCombinedAdapter adapter)
@@ -165,14 +168,14 @@ public class FileClient {
         Frame chooseFile = new Frame(FrameType.CHOOSE_FILE, new SessionData(hash, filePath).encode());
 
         combiners.put(hash, new FileCombiner(adapter));
-        sender.addFrame(chooseFile);
+        bufferizedSender.addFrame(chooseFile);
     }
 
     private void logUnexpectedFrameType(Frame frame) {
- //       logger.severe(
-   //             "Received an unexpected frame type: "
-     //                   + frame.getType().name()
-       //                 + " while having clientState: " + clientState.name()
-        //);
+        logger.severe(
+                "Received an unexpected frame type: "
+                        + frame.getType().name()
+                        + " while having clientState: " + clientState.name()
+        );
     }
 }

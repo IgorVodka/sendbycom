@@ -28,7 +28,7 @@ public class FileServer {
 
     private ConnectionSupporter connectionSupporter;
 
-    private BufferizedSender sender; // todo rename to bufferizedSender
+    private BufferizedSender bufferizedSender; // todo rename to bufferizedSender
     private BufferizedReceiver bufferizedReceiver;
 
     public FileServer(Logger logger, Port clientPort, ConnectionSupportAdapter connectionSupportAdapter) {
@@ -36,13 +36,13 @@ public class FileServer {
         this.clientPort = clientPort;
         this.receiver = new FrameReceiver(clientPort);
         this.serverState = ServerState.IDLE;
-        this.connectionSupporter = new ConnectionSupporter(sender, clientPort, connectionSupportAdapter);
+        this.bufferizedSender = new BufferizedSender(clientPort);
+        this.bufferizedReceiver = new BufferizedReceiver();
+        this.connectionSupporter = new ConnectionSupporter(bufferizedSender, clientPort, connectionSupportAdapter);
     }
 
-    public void listen() throws PortClosedException, DataTooBigException, InterruptedException {
+    public void listen() throws PortClosedException, DataTooBigException {
         clientPort.open();
-        this.sender = new BufferizedSender(clientPort);
-        this.bufferizedReceiver = new BufferizedReceiver();
 
         while (true) {
             if (serverState == ServerState.READY && connectionSupporter.timeout()) {
@@ -50,7 +50,7 @@ public class FileServer {
                 this.serverState = ServerState.IDLE;
             }
 
-            sender.tryToSendFrames();
+            bufferizedSender.tryToSendFrames();
 
             if (receiver.hasData()) {
                 connectionSupporter.updateLastOnline();
@@ -59,7 +59,7 @@ public class FileServer {
                 if (frameJustReceived.getType() == FrameType.CONFIRM_RECEIVED) {
                     int confirmedIndex = ByteUtils.bytesToInt(frameJustReceived.getData());
                     System.out.println("Trying to mark as received remotely (local) #" + confirmedIndex);
-                    sender.markAllUpToLocalIndexAsReceivedRemotely(ByteUtils.bytesToInt(frameJustReceived.getData()));
+                    bufferizedSender.markAllUpToLocalIndexAsReceivedRemotely(ByteUtils.bytesToInt(frameJustReceived.getData()));
                     continue;
                 }
 
@@ -77,7 +77,7 @@ public class FileServer {
                             // ...and respond with a PONG containing the same data.
                             assert frame.getData().length == 4;
 
-                            sender.addFrame(new Frame(FrameType.PONG, frame.getData()));
+                            bufferizedSender.addFrame(new Frame(FrameType.PONG, frame.getData()));
                             serverState = ServerState.READY;
                             connectionSupporter.startWatcherThread();
 
@@ -97,14 +97,14 @@ public class FileServer {
                             String dirPath = new String(data.getBody());
                             DirContents dirContents = new DirContents(dirPath, data.getHash());
                             logger.info("Requested the " + dirPath + " directory list.");
-                            sender.addFrames(dirContents.getFrames());
+                            bufferizedSender.addFrames(dirContents.getFrames());
                         } else if (frame.getType() == FrameType.CHOOSE_FILE) {
                             SessionData data = SessionData.decode(frame.getData());
 
                             String filePath = new String(data.getBody());
                             FileContents fileContents = new FileContents(filePath, data.getHash());
                             logger.info("Requested the " + filePath + " file.");
-                            sender.addFrames(fileContents.getFrames());
+                            bufferizedSender.addFrames(fileContents.getFrames());
                         } else {
                             logUnexpectedFrameType(frame);
                         }

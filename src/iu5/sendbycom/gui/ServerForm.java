@@ -15,8 +15,12 @@ public class ServerForm extends JFrame {
     private JLabel stateLabel;
     private JPanel contentPane;
 
+    private Thread serverThread;
+
     ServerForm(String port) {
         super();
+
+        setResizable(false);
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         this.port = new Port(port);
@@ -31,7 +35,7 @@ public class ServerForm extends JFrame {
     }
 
     private void launchServer() {
-        Thread serverThread = new Thread(new Runnable() {
+        serverThread = new Thread(new Runnable() {
             public void run() {
                 try {
                     FileServer server = new FileServer(
@@ -60,6 +64,8 @@ public class ServerForm extends JFrame {
         @Override
         public void onDisconnected() {
             stateLabel.setText("Ожидает соединения...");
+            serverThread.interrupt();
+            launchServer();
         }
     }
 }

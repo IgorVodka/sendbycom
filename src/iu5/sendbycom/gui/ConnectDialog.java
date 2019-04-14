@@ -11,24 +11,18 @@ public class ConnectDialog extends JDialog {
     private JButton buttonServer;
     private JButton buttonClient;
     private JComboBox portsComboBox;
+    private JTextPane курсоваяРаботаСтудентовИУ5TextPane;
 
     public ConnectDialog() {
         setContentPane(contentPane);
         setModal(true);
+        setResizable(false);
         getRootPane().setDefaultButton(buttonServer);
 
         populatePortsComboBox();
 
-        buttonServer.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                onServerChosen();
-            }
-        });
-        buttonClient.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                onClientChosen();
-            }
-        });
+        buttonServer.addActionListener(e -> onServerChosen());
+        buttonClient.addActionListener(e -> onClientChosen());
     }
 
     private void populatePortsComboBox() {
