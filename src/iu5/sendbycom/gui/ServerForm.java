@@ -35,24 +35,22 @@ public class ServerForm extends JFrame {
     }
 
     private void launchServer() {
-        serverThread = new Thread(new Runnable() {
-            public void run() {
-                try {
-                    FileServer server = new FileServer(
-                            Logger.getLogger("server"),
-                            port,
-                            new ServerConnectionAdapter()
-                    );
-                    server.listen();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+        serverThread = new Thread(() -> {
+            try {
+                FileServer server = new FileServer(
+                        Logger.getLogger("server"),
+                        port,
+                        new ServerConnectionAdapter()
+                );
+                server.listen();
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         });
 
         serverThread.start();
 
-        this.stateLabel.setText("запущен");
+        this.stateLabel.setText("Ожидает...");
     }
 
     class ServerConnectionAdapter implements ConnectionSupportAdapter {
