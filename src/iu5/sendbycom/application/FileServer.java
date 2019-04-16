@@ -1,7 +1,7 @@
 package iu5.sendbycom.application;
 
-import iu5.sendbycom.application.connection.BufferizedReceiver;
-import iu5.sendbycom.application.connection.BufferizedSender;
+import iu5.sendbycom.link.bufferized.BufferizedReceiver;
+import iu5.sendbycom.link.bufferized.BufferizedSender;
 import iu5.sendbycom.application.connection.ConnectionSupporter;
 import iu5.sendbycom.application.datatypes.SessionData;
 import iu5.sendbycom.application.connection.event.ConnectionSupportAdapter;
