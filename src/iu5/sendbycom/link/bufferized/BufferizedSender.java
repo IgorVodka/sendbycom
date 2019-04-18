@@ -1,13 +1,11 @@
-package iu5.sendbycom.application.connection;
+package iu5.sendbycom.link.bufferized;
 
 import iu5.sendbycom.application.CommonParams;
 import iu5.sendbycom.link.Frame;
 import iu5.sendbycom.physical.Port;
 import iu5.sendbycom.physical.exception.PortClosedException;
-import javafx.util.Pair;
 
 import java.util.*;
-import java.util.concurrent.SynchronousQueue;
 
 // todo link level
 public class BufferizedSender {

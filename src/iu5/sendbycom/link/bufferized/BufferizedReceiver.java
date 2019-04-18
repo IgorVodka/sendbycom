@@ -1,4 +1,4 @@
-package iu5.sendbycom.application.connection;
+package iu5.sendbycom.link.bufferized;
 
 import iu5.sendbycom.link.ByteUtils;
 import iu5.sendbycom.link.Frame;

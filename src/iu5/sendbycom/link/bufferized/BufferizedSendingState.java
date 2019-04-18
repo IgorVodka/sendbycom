@@ -1,4 +1,4 @@
-package iu5.sendbycom.application.connection;
+package iu5.sendbycom.link.bufferized;
 
 // todo link level
 public enum BufferizedSendingState {

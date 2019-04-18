@@ -5,6 +5,7 @@ import iu5.sendbycom.application.connection.event.ConnectionSupportAdapter;
 import iu5.sendbycom.link.ByteUtils;
 import iu5.sendbycom.link.Frame;
 import iu5.sendbycom.link.FrameType;
+import iu5.sendbycom.link.bufferized.BufferizedSender;
 import iu5.sendbycom.physical.Port;
 import iu5.sendbycom.physical.exception.DataTooBigException;
 import iu5.sendbycom.physical.exception.PortClosedException;
