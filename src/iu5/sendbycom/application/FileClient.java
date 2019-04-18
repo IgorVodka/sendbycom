@@ -11,6 +11,7 @@ import iu5.sendbycom.application.connection.ConnectionSupporter;
 import iu5.sendbycom.application.datatypes.SessionData;
 import iu5.sendbycom.application.datatypes.SessionHash;
 import iu5.sendbycom.application.connection.event.ConnectionSupportAdapter;
+import iu5.sendbycom.application.datatypes.SwapRolesResult;
 import iu5.sendbycom.application.exception.MetaNotReceivedException;
 import iu5.sendbycom.link.ByteUtils;
 import iu5.sendbycom.link.Frame;
@@ -27,7 +28,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.logging.Logger;
 
-public class FileClient {
+public class FileClient implements Swappable {
     private Logger logger;
 
     private Port serverPort;
@@ -39,6 +40,7 @@ public class FileClient {
     private Map<SessionHash, Combiner> combiners;
 
     private ConnectionSupporter connectionSupporter;
+    private ConnectionSupportAdapter connectionSupportAdapter;
 
     private BufferizedSender bufferizedSender;
     private BufferizedReceiver bufferizedReceiver;
@@ -51,6 +53,7 @@ public class FileClient {
         this.bufferizedSender = new BufferizedSender(serverPort);
         this.bufferizedReceiver = new BufferizedReceiver();
         this.connectionSupporter = new ConnectionSupporter(bufferizedSender, serverPort, connectionSupportAdapter);
+        this.connectionSupportAdapter = connectionSupportAdapter;
         this.combiners = new HashMap<>();
     }
 
@@ -126,6 +129,14 @@ public class FileClient {
                             if (combiners.containsKey(hash)) {
                                 combiners.get(hash).add(frame.getType(), sessionData);
                             } // else todo
+                        } else if (frame.getType() == FrameType.REQUEST_SWAP_ROLES) {
+                            connectionSupportAdapter.onSwapRolesRequested();
+                        } else if (frame.getType() == FrameType.RESPOND_SWAP_ROLES) {
+                            connectionSupportAdapter.onSwapRolesResponded(
+                                    frame.getData()[0] == 0
+                                            ? SwapRolesResult.DENY
+                                            : SwapRolesResult.ALLOW
+                            );
                         } else {
                             logUnexpectedFrameType(frame);
                         }
@@ -171,11 +182,39 @@ public class FileClient {
         bufferizedSender.addFrame(chooseFile);
     }
 
+    public void requestSwapRoles() throws DataTooBigException {
+        if (clientState != ClientState.READY) {
+            // todo exc
+            logger.severe("You can only swap roles while in the READY state.");
+            return;
+        }
+
+        Frame requestSwapRoles = new Frame(FrameType.REQUEST_SWAP_ROLES, new byte[] {});
+        bufferizedSender.addFrame(requestSwapRoles);
+    }
+
+    public void respondSwapRoles(SwapRolesResult result) throws DataTooBigException {
+        if (clientState != ClientState.READY) {
+            // todo exc
+            logger.severe("You can only swap roles while in the READY state.");
+            return;
+        }
+
+        Frame respondSwapRoles = new Frame(FrameType.RESPOND_SWAP_ROLES, new byte[] {
+                result == SwapRolesResult.ALLOW ? (byte)1 : (byte)0
+        });
+        bufferizedSender.addFrame(respondSwapRoles);
+    }
+
     private void logUnexpectedFrameType(Frame frame) {
         logger.severe(
                 "Received an unexpected frame type: "
                         + frame.getType().name()
                         + " while having clientState: " + clientState.name()
         );
+    }
+
+    public void stopWatcherThread() {
+        connectionSupporter.stopWatcherThread();
     }
 }

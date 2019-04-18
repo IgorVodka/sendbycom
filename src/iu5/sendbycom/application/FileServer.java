@@ -5,6 +5,7 @@ import iu5.sendbycom.application.connection.BufferizedSender;
 import iu5.sendbycom.application.connection.ConnectionSupporter;
 import iu5.sendbycom.application.datatypes.SessionData;
 import iu5.sendbycom.application.connection.event.ConnectionSupportAdapter;
+import iu5.sendbycom.application.datatypes.SwapRolesResult;
 import iu5.sendbycom.application.message.DirContents;
 import iu5.sendbycom.application.message.FileContents;
 import iu5.sendbycom.link.ByteUtils;
@@ -17,7 +18,7 @@ import iu5.sendbycom.physical.exception.PortClosedException;
 
 import java.util.logging.Logger;
 
-public class FileServer {
+public class FileServer implements Swappable {
     private Logger logger;
 
     private Port clientPort;
@@ -27,6 +28,7 @@ public class FileServer {
     private ServerState serverState;
 
     private ConnectionSupporter connectionSupporter;
+    private ConnectionSupportAdapter connectionSupportAdapter;
 
     private BufferizedSender bufferizedSender; // todo rename to bufferizedSender
     private BufferizedReceiver bufferizedReceiver;
@@ -39,6 +41,7 @@ public class FileServer {
         this.bufferizedSender = new BufferizedSender(clientPort);
         this.bufferizedReceiver = new BufferizedReceiver();
         this.connectionSupporter = new ConnectionSupporter(bufferizedSender, clientPort, connectionSupportAdapter);
+        this.connectionSupportAdapter = connectionSupportAdapter;
     }
 
     public void listen() throws PortClosedException, DataTooBigException {
@@ -105,6 +108,14 @@ public class FileServer {
                             FileContents fileContents = new FileContents(filePath, data.getHash());
                             logger.info("Requested the " + filePath + " file.");
                             bufferizedSender.addFrames(fileContents.getFrames());
+                        } else if (frame.getType() == FrameType.REQUEST_SWAP_ROLES) {
+                            connectionSupportAdapter.onSwapRolesRequested();
+                        } else if (frame.getType() == FrameType.RESPOND_SWAP_ROLES) {
+                            connectionSupportAdapter.onSwapRolesResponded(
+                                    frame.getData()[0] == 0
+                                            ? SwapRolesResult.DENY
+                                            : SwapRolesResult.ALLOW
+                            );
                         } else {
                             logUnexpectedFrameType(frame);
                         }
@@ -115,6 +126,30 @@ public class FileServer {
         }
     }
 
+    public void requestSwapRoles() throws DataTooBigException {
+        if (serverState != ServerState.READY) {
+            // todo exc
+            logger.severe("You can only swap roles while in the READY state.");
+            return;
+        }
+
+        Frame requestSwapRoles = new Frame(FrameType.REQUEST_SWAP_ROLES, new byte[] {});
+        bufferizedSender.addFrame(requestSwapRoles);
+    }
+
+    public void respondSwapRoles(SwapRolesResult result) throws DataTooBigException {
+        if (serverState != ServerState.READY) {
+            // todo exc
+            logger.severe("You can only swap roles while in the READY state.");
+            return;
+        }
+
+        Frame respondSwapRoles = new Frame(FrameType.RESPOND_SWAP_ROLES, new byte[] {
+                result == SwapRolesResult.ALLOW ? (byte)1 : (byte)0
+        });
+        bufferizedSender.addFrame(respondSwapRoles);
+    }
+
     // TODO move to parent class, among with handlers for PARAMS and GOODBYE
     private void logUnexpectedFrameType(Frame frame) {
         logger.severe(
@@ -122,5 +157,9 @@ public class FileServer {
                 + frame.getType().name()
                 + " while having serverState: " + serverState.name()
         );
+    }
+
+    public void stopWatcherThread() {
+        connectionSupporter.stopWatcherThread();
     }
 }

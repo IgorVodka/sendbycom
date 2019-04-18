@@ -36,6 +36,12 @@ public enum FrameType {
     // Change connection params.
     PARAMS,
 
+    // Request swap roles.
+    REQUEST_SWAP_ROLES,
+
+    // Respond to swap roles (0 = deny, 1 = allow).
+    RESPOND_SWAP_ROLES,
+
     // Close the connection.
     GOODBYE;
 

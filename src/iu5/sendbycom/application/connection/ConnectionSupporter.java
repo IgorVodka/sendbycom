@@ -12,6 +12,7 @@ import iu5.sendbycom.physical.exception.PortClosedException;
 import java.util.Date;
 
 public class ConnectionSupporter {
+    private Thread thread;
     private BufferizedSender sender;
     private Port port;
     private long lastOnlineTime;
@@ -29,7 +30,7 @@ public class ConnectionSupporter {
         updateLastOnline();
         connectionSupportAdapter.onConnected();
 
-        new Thread(() -> {
+        thread = new Thread(() -> {
             while (true) {
                 try {
                     // without sender, directly to the port, because URGENT!
@@ -55,7 +56,13 @@ public class ConnectionSupporter {
                     e.printStackTrace();
                 }
             }
-        }).start();
+        });
+
+        thread.start();
+    }
+
+    public void stopWatcherThread() {
+        thread.stop();
     }
 
     public void updateLastOnline() {

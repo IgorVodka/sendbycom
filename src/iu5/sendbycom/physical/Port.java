@@ -155,4 +155,9 @@ public class Port {
                 throw new UnknownPortParameter("parity", port.getParity());
         }
     }
+
+    public void close() {
+        port.setBreak();
+        port.closePort();
+    }
 }

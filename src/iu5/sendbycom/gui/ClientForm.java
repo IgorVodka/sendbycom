@@ -3,6 +3,7 @@ package iu5.sendbycom.gui;
 import iu5.sendbycom.application.CommonParams;
 import iu5.sendbycom.application.FileClient;
 import iu5.sendbycom.application.FileServer;
+import iu5.sendbycom.application.Swappable;
 import iu5.sendbycom.application.combiner.event.*;
 import iu5.sendbycom.application.connection.event.ConnectionSupportAdapter;
 import iu5.sendbycom.application.datatypes.DirFile;
@@ -39,9 +40,11 @@ public class ClientForm extends JFrame {
     private JProgressBar downloadProgressBar;
     private JLabel nettoSpeedLabel;
     private JLabel bruttoSpeedLabel;
+    private JButton swapRolesButton;
 
-    String currentPath;
+    private String currentPath;
 
+    private Thread clientThread;
     private FileClient client;
 
     ClientForm(String port) {
@@ -62,39 +65,36 @@ public class ClientForm extends JFrame {
             final String selectedPath = dirPathTextField.getText();
 
             try {
-                client.requestListDir(selectedPath, new DirCombinedAdapter() {
-                    @Override
-                    public void onDirCombined(DirCombinedEvent event) {
-                        Vector<String> dirs = new Vector<String>();
+                client.requestListDir(selectedPath, event -> {
+                    Vector<String> dirs = new Vector<String>();
 
-                        dirs.add("..");
+                    dirs.add("..");
 
-                        Vector<String> files = new Vector<String>();
+                    Vector<String> files = new Vector<String>();
 
-                        if (!event.isSuccess()) {
-                            JOptionPane.showMessageDialog(
-                                    new JFrame(),
-                                    "Не удалось отобразить список файлов",
-                                    "Ошибка!",
-                                    JOptionPane.ERROR_MESSAGE
-                            );
-                            return;
-                        }
-
-                        for (DirFile dirFile : event.getFiles()) {
-                            if (dirFile.isDirectory()) {
-                                dirs.add(dirFile.getName());
-                            } else {
-                                files.add(dirFile.getName());
-                            }
-                        }
-
-                        dirPathTextField.setText(selectedPath);
-                        currentPath = selectedPath;
-
-                        dirList.setListData(dirs);
-                        fileList.setListData(files);
+                    if (!event.isSuccess()) {
+                        JOptionPane.showMessageDialog(
+                                new JFrame(),
+                                "Не удалось отобразить список файлов",
+                                "Ошибка!",
+                                JOptionPane.ERROR_MESSAGE
+                        );
+                        return;
                     }
+
+                    for (DirFile dirFile : event.getFiles()) {
+                        if (dirFile.isDirectory()) {
+                            dirs.add(dirFile.getName());
+                        } else {
+                            files.add(dirFile.getName());
+                        }
+                    }
+
+                    dirPathTextField.setText(selectedPath);
+                    currentPath = selectedPath;
+
+                    dirList.setListData(dirs);
+                    fileList.setListData(files);
                 });
             } catch (DataTooBigException e1) {
                 e1.printStackTrace(); // todo
@@ -195,8 +195,8 @@ public class ClientForm extends JFrame {
                                         // if not in event queue, it would block the thread and sending still alives
                                         EventQueue.invokeLater(() -> {
                                             JOptionPane.showMessageDialog(
-                                                new JFrame(),
-                                                "Файл успешно загружен!"
+                                                    new JFrame(),
+                                                    "Файл успешно загружен!"
                                             );
                                         });
                                         stream.close();
@@ -211,7 +211,7 @@ public class ClientForm extends JFrame {
                                         int bytesReceivedNetto = partsReceived * CommonParams.PART_SIZE;
 
                                         // +2 frame, +4 session, * 7/4 hamming
-                                        int bytesReceivedBrutto = bytesReceivedNetto * 7/4 + partsReceived * 6;
+                                        int bytesReceivedBrutto = bytesReceivedNetto * 7 / 4 + partsReceived * 6;
 
                                         long timeDiff = Math.max(1, new Date().getTime() - timeBegan);
 
@@ -232,37 +232,37 @@ public class ClientForm extends JFrame {
                 }
             }
         });
+
+        swapRolesButton.addActionListener(e -> {
+            try {
+                client.requestSwapRoles();
+            } catch (DataTooBigException e1) {
+                e1.printStackTrace();
+            }
+        });
     }
 
     private void launchClient() {
-        Thread clientThread = new Thread(() -> {
+        clientThread = new Thread(() -> {
             try {
+                ClientConnectionAdapter adapter = new ClientConnectionAdapter();
                 client = new FileClient(
                         Logger.getLogger("client"),
                         port,
-                        new ClientConnectionAdapter()
+                        adapter
                 );
+                adapter.setWorker(client);
                 client.connect();
                 Thread.sleep(3000);
             } catch (Exception e) {
                 e.printStackTrace(); // todo
             }
-            });
+        });
 
         clientThread.start();
     }
 
-    public void setUIFont(FontUIResource f){
-        java.util.Enumeration keys = UIManager.getDefaults().keys();
-        while (keys.hasMoreElements()) {
-            Object key = keys.nextElement();
-            Object value = UIManager.get(key);
-            if (value instanceof FontUIResource)
-                UIManager.put(key, f);
-        }
-    }
-
-    class ClientConnectionAdapter implements ConnectionSupportAdapter {
+    class ClientConnectionAdapter extends SwappableConnectionSupportAdapter {
         @Override
         public void onConnected() {
             contentPane.setVisible(true);
@@ -279,6 +279,36 @@ public class ClientForm extends JFrame {
             );
 
             dispose();
+        }
+
+        @Override
+        public void onSwapped(long intervalBetweenStopAndRestart) {
+            EventQueue.invokeLater(() -> {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+                client.stopWatcherThread();
+                clientThread.interrupt();
+
+                port.close();
+                setVisible(false);
+
+                try {
+                    Thread.sleep(intervalBetweenStopAndRestart);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+                ServerForm form = new ServerForm(port.getName());
+                form.setLocation(getLocation());
+                form.pack();
+                form.setVisible(true);
+
+                dispose();
+            });
         }
     }
 }

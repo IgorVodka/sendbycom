@@ -2,11 +2,14 @@ package iu5.sendbycom.gui;
 
 import iu5.sendbycom.Main;
 import iu5.sendbycom.application.FileServer;
+import iu5.sendbycom.application.Swappable;
 import iu5.sendbycom.application.connection.event.ConnectionSupportAdapter;
 import iu5.sendbycom.physical.Port;
+import iu5.sendbycom.physical.exception.DataTooBigException;
 
 import javax.swing.*;
 import java.awt.*;
+import java.sql.Connection;
 import java.util.logging.Logger;
 
 public class ServerForm extends JFrame {
@@ -14,8 +17,10 @@ public class ServerForm extends JFrame {
 
     private JLabel stateLabel;
     private JPanel contentPane;
+    private JButton swapRolesButton;
 
     private Thread serverThread;
+    private FileServer server;
 
     ServerForm(String port) {
         super();
@@ -31,17 +36,27 @@ public class ServerForm extends JFrame {
         this.setTitle("Сервер на порту " + port);
         this.stateLabel.setText("бла бла");
 
+        this.swapRolesButton.addActionListener(e -> {
+            try {
+                server.requestSwapRoles();
+            } catch (DataTooBigException e1) {
+                e1.printStackTrace();
+            }
+        });
+
         launchServer();
     }
 
     private void launchServer() {
         serverThread = new Thread(() -> {
             try {
-                FileServer server = new FileServer(
+                ServerConnectionAdapter adapter = new ServerConnectionAdapter();
+                server = new FileServer(
                         Logger.getLogger("server"),
                         port,
-                        new ServerConnectionAdapter()
+                        adapter
                 );
+                adapter.setWorker(server);
                 server.listen();
             } catch (Exception e) {
                 e.printStackTrace();
@@ -53,7 +68,7 @@ public class ServerForm extends JFrame {
         this.stateLabel.setText("Ожидает...");
     }
 
-    class ServerConnectionAdapter implements ConnectionSupportAdapter {
+    class ServerConnectionAdapter extends SwappableConnectionSupportAdapter {
         @Override
         public void onConnected() {
             stateLabel.setText("Подключено!");
@@ -64,6 +79,36 @@ public class ServerForm extends JFrame {
             stateLabel.setText("Ожидает соединения...");
             serverThread.interrupt();
             launchServer();
+        }
+
+        @Override
+        public void onSwapped(long intervalBetweenStopAndRestart) {
+            EventQueue.invokeLater(() -> {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+                server.stopWatcherThread();
+                serverThread.interrupt();
+
+                port.close();
+                setVisible(false);
+
+                try {
+                    Thread.sleep(intervalBetweenStopAndRestart);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+                ClientForm form = new ClientForm(port.getName());
+                form.setLocation(getLocation());
+                form.pack();
+                form.setVisible(true);
+
+                dispose();
+            });
         }
     }
 }
